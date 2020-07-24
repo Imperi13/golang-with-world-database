@@ -16,6 +16,13 @@ import(
 	"golang.org/x/crypto/bcrypt"
 )
 
+type Country struct {
+	Code        string `json:"code,omitempty" db:"Code"`
+	Name        string `json:"name,omitempty" db:"Name"`
+	Continent   string `json:"continent,omitempty" db:"Continent"`
+	Population  int    `json:"population,omitempty" db:"Population"`
+}
+
 type City struct {
 	ID          int    `json:"id,omitempty"  db:"ID"`
 	Name        string `json:"name,omitempty"  db:"Name"`
@@ -55,6 +62,10 @@ func main(){
 	withLogin.Use(checkLogin)
 
 	withLogin.POST("/post",postCityInfoHandler)
+
+	withLogin.GET("/countrylist",getCountryListHandler)
+
+	withLogin.GET("/citylist/:countryCode",getCityListHandler)
 
 	withLogin.GET("/cities/:cityName", getCityInfoHandler)
 	withLogin.GET("/whoami",getWhoAmIHandler)
@@ -158,6 +169,29 @@ func getWhoAmIHandler(c echo.Context)error{
 	})
 }
 
+func getCountryListHandler(c echo.Context) error{
+	countries := []Country{}
+	err := db.Select(&countries,"SELECT Code,Name,Continent,Population FROM country")
+
+	if err != nil{
+		return c.String(http.StatusInternalServerError,fmt.Sprintf("db error %v",err))
+	}
+
+	return c.JSON(http.StatusOK,countries)
+}
+
+func getCityListHandler(c echo.Context) error{
+	countryCode := c.Param("countryCode")
+	cities :=[]City{}
+	err := db.Select(&cities,"SELECT * FROM city WHERE CountryCode=?",countryCode)
+
+	if err != nil{
+		return c.String(http.StatusInternalServerError,fmt.Sprintf("db error %v",err))
+	}
+
+	return c.JSON(http.StatusOK,cities)
+}
+
 func getCityInfoHandler(c echo.Context) error{
 	cityName := c.Param("cityName")
 	fmt.Println(cityName)
@@ -179,7 +213,7 @@ func postCityInfoHandler(c echo.Context)error{
 		return c.String(http.StatusBadRequest,"failed to convert body to city_data")
 	}
 
-	db.MustExec("INSERT INTO city (Name,CountryCode,District,Population) VALUES (?,?,?,?)",data.Name,data.CountryCode,data.District,data.Population)
+	db.Exec("INSERT INTO city (Name,CountryCode,District,Population) VALUES (?,?,?,?)",data.Name,data.CountryCode,data.District,data.Population)
 
 	if err != nil{
 		return c.String(http.StatusBadRequest,"failed to insert data")
